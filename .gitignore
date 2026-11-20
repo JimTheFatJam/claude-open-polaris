@@ -13,3 +13,4 @@ build/
 !debug-shared.keystore
 *.apk
 *.aab
+/dist/
