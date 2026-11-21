@@ -47,11 +47,30 @@ object PhoneGuidance {
         toTrue(r.mul(SCREEN_NORMAL), declinationDeg, headingCorrectionDeg)
 
     /**
-     * How far the target is from lying in the phone's plane, and which way to tilt the phone.
-     * Spinning the phone within its own plane does not change [offsetDeg].
+     * The plane's "most vertical line": the steepest-ascent direction within the screen plane,
+     * i.e. world-up projected onto the plane, u − (u·n)n. It depends only on the plane's tilt, so it
+     * is unchanged when the phone spins within its own plane. Its altitude is 90° − |plane tilt|.
+     * Returns null when the phone lies (almost) level: a horizontal plane has no vertical line.
+     */
+    fun planeVerticalLine(r: DoubleArray, declinationDeg: Double, headingCorrectionDeg: Double): HorizontalDirection? {
+        val n = r.mul(SCREEN_NORMAL).normalized()
+        val up = Vec3(0.0, 0.0, 1.0)
+        val p = up + n * -(up dot n)
+        if (p.norm < LEVEL_EPSILON) return null
+        return toTrue(p, declinationDeg, headingCorrectionDeg)
+    }
+
+    /** sin(1.5°): within 1.5° of level the vertical line is undefined/unstable. */
+    private const val LEVEL_EPSILON = 0.026
+
+    /**
+     * Guidance for plane mode. The target must lie in the phone's plane AND on the plane's most
+     * vertical line; together these pin down a single pointing direction ([PlaneGuide.verticalLine]).
+     * Spinning the phone within its own plane changes neither condition.
      */
     fun planeGuide(r: DoubleArray, target: HorizontalDirection, declinationDeg: Double, headingCorrectionDeg: Double): PlaneGuide {
-        val t = r.mulTransposed(targetInSensorFrame(target, declinationDeg, headingCorrectionDeg)).normalized()
+        val tWorld = targetInSensorFrame(target, declinationDeg, headingCorrectionDeg)
+        val t = r.mulTransposed(tWorld).normalized()
         val offset = Math.toDegrees(asin(t.z.coerceIn(-1.0, 1.0)))
         val inPlaneLength = kotlin.math.sqrt(t.x * t.x + t.y * t.y)
         val direction = if (inPlaneLength < 1e-6) 0.0 else PointingMath.normalizeAzimuth(Math.toDegrees(atan2(t.x, t.y)))
@@ -64,7 +83,13 @@ object PhoneGuidance {
             screenUp > 0 -> EdgeMove.RAISE
             else -> EdgeMove.LOWER
         }
-        return PlaneGuide(offset, direction, edgeToMove, move)
+        val line = planeVerticalLine(r, declinationDeg, headingCorrectionDeg)
+        // Direction of the vertical line within the plane, clockwise from the top edge.
+        val lineDev = r.mulTransposed(Vec3(0.0, 0.0, 1.0)).let { u -> Vec3(u.x, u.y, 0.0) }
+        val lineDirection = if (line == null || lineDev.norm < 1e-9) null
+        else PointingMath.normalizeAzimuth(Math.toDegrees(atan2(lineDev.x, lineDev.y)))
+        val guide = line?.let { PointingMath.guide(it, target) }
+        return PlaneGuide(offset, direction, edgeToMove, move, line, lineDirection, guide)
     }
 }
 
@@ -79,11 +104,45 @@ enum class EdgeMove { RAISE, LOWER, TOWARD_SCREEN_SIDE }
  * @property move how to move that edge, using gravity to say "raise"/"lower" when the screen is not
  *   close to vertical.
  */
-data class PlaneGuide(val offsetDeg: Double, val inPlaneDirectionDeg: Double, val edgeDeg: Double, val move: EdgeMove) {
-    val aligned: Boolean get() = abs(offsetDeg) < ALIGNED_DEG
+data class PlaneGuide(
+    val offsetDeg: Double,
+    val inPlaneDirectionDeg: Double,
+    val edgeDeg: Double,
+    val move: EdgeMove,
+    /** True az/alt of the plane's most vertical line; null when the phone is level. */
+    val verticalLine: HorizontalDirection? = null,
+    /** Where the vertical line runs within the phone's plane, clockwise from the top edge. */
+    val verticalLineInPlaneDeg: Double? = null,
+    /** Correction from the vertical line to the target (turn about the vertical, steepen/flatten). */
+    val lineGuide: PushToGuide? = null,
+) {
+    /** The target lies in the plane (one condition). */
+    val inPlane: Boolean get() = abs(offsetDeg) < ALIGNED_DEG
 
+    /** Angle between the plane's most vertical line and the target (pinpoint error). */
+    val separationDeg: Double? get() = lineGuide?.separationDeg
+
+    /** Pinpoint alignment: the target is on the plane's most vertical line. */
+    val aligned: Boolean get() = (separationDeg ?: 180.0) < ALIGNED_DEG
+
+    /**
+     * Primary instruction: bring the plane's most vertical line onto the target by turning the
+     * phone about the vertical (azimuth) and making it steeper or flatter (the line's altitude is
+     * 90° − the phone's tilt).
+     */
     fun instruction(): String {
-        if (aligned) return "Aligned: the phone's plane passes through the target"
+        val g = lineGuide ?: return "Tilt the phone off level: a flat phone has no vertical line"
+        if (aligned) return "On target: the plane's vertical line points at the object"
+        val turn = if (abs(g.deltaAzimuthDeg) < ALIGNED_DEG) null
+        else (if (g.deltaAzimuthDeg > 0) "turn right " else "turn left ") + "%.0f°".format(abs(g.deltaAzimuthDeg))
+        val tilt = if (abs(g.deltaAltitudeDeg) < ALIGNED_DEG) null
+        else (if (g.deltaAltitudeDeg > 0) "make the phone steeper " else "make the phone flatter ") + "%.0f°".format(abs(g.deltaAltitudeDeg))
+        return listOfNotNull(turn, tilt).joinToString(", ").replaceFirstChar { it.uppercase() }
+    }
+
+    /** Secondary instruction: just get the target into the plane (which edge to raise/lower). */
+    fun planeInstruction(): String {
+        if (inPlane) return "The plane passes through the target"
         val edge = edgeName(edgeDeg)
         val amount = "%.0f°".format(abs(offsetDeg))
         return when (move) {

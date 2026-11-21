@@ -50,14 +50,14 @@ class PhoneGuidanceTest {
         val g = PhoneGuidance.planeGuide(identity, HorizontalDirection(90.0, 30.0), 0.0, 0.0)
         assertEquals(30.0, g.offsetDeg, 1e-6)
         assertEquals(90.0, g.inPlaneDirectionDeg, 1e-6)
-        assertEquals("Raise the right edge 30°", g.instruction())
+        assertEquals("Raise the right edge 30°", g.planeInstruction())
     }
 
     @Test fun followingTheInstructionAligns() {
         // Raise the right (east) edge of a flat phone by 30°: rotate about the device Y axis.
         val tilted = pose(0.0, 0.0, roll = -30.0)
         val g = PhoneGuidance.planeGuide(tilted, HorizontalDirection(90.0, 30.0), 0.0, 0.0)
-        assertTrue("offset ${g.offsetDeg}", g.aligned)
+        assertTrue("offset ${g.offsetDeg}", g.inPlane)
     }
 
     @Test fun spinningWithinThePlaneDoesNotChangeAlignment() {
@@ -76,9 +76,11 @@ class PhoneGuidanceTest {
         val target = HorizontalDirection(123.0, 38.0)
         val r = pose(123.0, 38.0) // pitch about X raises the top edge to the target's altitude
         val g = PhoneGuidance.planeGuide(r, target, 0.0, 0.0)
-        assertTrue(g.aligned)
+        assertTrue(g.inPlane)
+        // Pitching about X makes the top edge the steepest line, so this is also a pinpoint alignment.
+        assertTrue("sep ${g.separationDeg}", g.aligned)
         assertEquals(0.0, g.inPlaneDirectionDeg, 1e-6) // beyond the top edge
-        assertTrue(g.instruction().startsWith("Aligned"))
+        assertTrue(g.instruction().startsWith("On target"))
     }
 
     @Test fun targetBehindPlaneTiltsOppositeEdge() {
@@ -90,14 +92,14 @@ class PhoneGuidanceTest {
         assertEquals(EdgeMove.RAISE, g.move)
         // Raising the left edge = lowering the right edge by |offset| → aligned.
         val fixed = PhoneGuidance.planeGuide(pose(0.0, 0.0, roll = -50.0 - g.offsetDeg), HorizontalDirection(90.0, 10.0), 0.0, 0.0)
-        assertTrue("offset ${fixed.offsetDeg}", fixed.aligned)
+        assertTrue("offset ${fixed.offsetDeg}", fixed.inPlane)
     }
 
     @Test fun verticalScreenUsesScreenRelativeWording() {
         val g = PhoneGuidance.planeGuide(pose(0.0, 90.0), HorizontalDirection(0.0, 30.0), 0.0, 0.0)
         assertEquals(EdgeMove.TOWARD_SCREEN_SIDE, g.move)
-        assertFalse(g.aligned)
-        assertTrue(g.instruction().contains("toward the screen side"))
+        assertFalse(g.inPlane)
+        assertTrue(g.planeInstruction().contains("toward the screen side"))
     }
 
     @Test fun headingCorrectionMovesTheTargetConsistently() {
@@ -115,5 +117,69 @@ class PhoneGuidanceTest {
         assertEquals("right", PlaneGuide.edgeName(100.0))
         assertEquals("bottom", PlaneGuide.edgeName(180.0))
         assertEquals("left", PlaneGuide.edgeName(-90.0))
+    }
+
+    // ------------------------------------------------------------------ most vertical line
+
+    @Test fun verticalLineOfPitchedPhoneIsTheRaisedTopEdge() {
+        val line = PhoneGuidance.planeVerticalLine(pose(0.0, 40.0), 0.0, 0.0)!!
+        assertEquals(0.0, PointingMath.signedAngleDiff(0.0, line.azimuthDeg), 1e-6)
+        assertEquals(40.0, line.altitudeDeg, 1e-6)
+    }
+
+    @Test fun verticalLineAltitudeIs90MinusTilt() {
+        // Tilt the phone sideways (raise the right edge 25°): the steepest line runs toward the right edge.
+        val r = pose(30.0, 0.0, roll = -25.0)
+        val line = PhoneGuidance.planeVerticalLine(r, 0.0, 0.0)!!
+        assertEquals(25.0, line.altitudeDeg, 1e-6)
+        val g = PhoneGuidance.planeGuide(r, HorizontalDirection(0.0, 10.0), 0.0, 0.0)
+        assertEquals("right", PlaneGuide.edgeName(g.verticalLineInPlaneDeg!!))
+        // A vertical screen: the steepest line is straight up.
+        assertEquals(90.0, PhoneGuidance.planeVerticalLine(pose(77.0, 90.0), 0.0, 0.0)!!.altitudeDeg, 1e-6)
+    }
+
+    @Test fun levelPhoneHasNoVerticalLine() {
+        assertEquals(null, PhoneGuidance.planeVerticalLine(identity, 0.0, 0.0))
+        val g = PhoneGuidance.planeGuide(identity, HorizontalDirection(90.0, 30.0), 0.0, 0.0)
+        assertFalse(g.aligned)
+        assertTrue(g.instruction().contains("off level"))
+    }
+
+    @Test fun verticalLineIgnoresSpinWithinThePlane() {
+        val a = PhoneGuidance.planeVerticalLine(pose(140.0, 55.0, 12.0), 3.0, -2.0)!!
+        listOf(30.0, 123.0, 250.0).forEach { spin ->
+            val b = PhoneGuidance.planeVerticalLine(pose(140.0, 55.0, 12.0, spin), 3.0, -2.0)!!
+            assertEquals(0.0, PointingMath.signedAngleDiff(a.azimuthDeg, b.azimuthDeg), 1e-6)
+            assertEquals(a.altitudeDeg, b.altitudeDeg, 1e-6)
+        }
+    }
+
+    @Test fun inPlaneButOffTheVerticalLineIsNotPinpoint() {
+        // Phone pitched 40° facing north: the plane contains due east at the horizon, but its vertical line points north at 40°.
+        val g = PhoneGuidance.planeGuide(pose(0.0, 40.0), HorizontalDirection(90.0, 0.0), 0.0, 0.0)
+        assertTrue(g.inPlane)
+        assertFalse(g.aligned)
+        assertEquals(90.0, g.separationDeg!!, 1e-6)
+    }
+
+    @Test fun followingTheVerticalLineInstructionsReachesPinpoint() {
+        val target = HorizontalDirection(210.0, 55.0)
+        val start = PhoneGuidance.planeGuide(pose(150.0, 30.0), target, 0.0, 0.0)
+        assertEquals("Turn right 60°, make the phone steeper 25°", start.instruction())
+        // Turning right 60° (yaw) and steepening 25° (pitch) lands the vertical line on the target.
+        val end = PhoneGuidance.planeGuide(pose(210.0, 55.0, spin = 33.0), target, 0.0, 0.0)
+        assertTrue("sep ${end.separationDeg}", end.aligned)
+        assertTrue(end.inPlane)
+    }
+
+    @Test fun pinpointImpliesInPlane() {
+        val rnd = kotlin.random.Random(7)
+        repeat(50) {
+            val r = pose(rnd.nextDouble(0.0, 360.0), rnd.nextDouble(5.0, 175.0), rnd.nextDouble(-60.0, 60.0), rnd.nextDouble(0.0, 360.0))
+            val line = PhoneGuidance.planeVerticalLine(r, 0.0, 0.0) ?: return@repeat
+            val g = PhoneGuidance.planeGuide(r, line, 0.0, 0.0)
+            assertTrue(g.aligned)
+            assertEquals(0.0, g.offsetDeg, 1e-6)
+        }
     }
 }

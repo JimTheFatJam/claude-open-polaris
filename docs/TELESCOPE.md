@@ -16,34 +16,47 @@ like photographing it.
 - The guide shows the azimuth and altitude change needed ("Turn right 12°, raise 5°") and the
   separation. It's on target within 2°.
 
-## Mode 2 — Phone plane
+## Mode 2 — Phone plane (with its most vertical line)
 
 Picture the phone lying on a sheet of glass: the plane of its screen. The plane moves with the
-phone when it **tilts** (top edge up and bottom edge down, or left edge up and right edge down). It
-does **not** move when the phone **spins within its own plane** (top edge to the right, bottom edge
-to the left).
+phone when it **tilts**. It does **not** move when the phone **spins within its own plane** (top
+edge to the right, bottom edge to the left).
 
-The goal is for the plane to **pass through the selected object**: the object's direction lies in
-the plane, at any spin angle.
+For pinpoint accuracy, two conditions must hold:
 
-- Express the object's direction **t** in phone coordinates: **t'** = **R**ᵀ·**t**.
-- **Off-plane angle** = asin(t'_z). This is the single number to bring to 0. Spinning the phone
-  within its plane rotates t' about Z, which leaves t'_z unchanged. That is exactly the property
-  described above.
-  - Positive means the object is on the **screen side** of the plane. Negative means it's behind.
-- **Which way to tilt**: the object's direction within the plane is atan2(t'_x, t'_y), clockwise
-  from the top edge. The fastest correction swings the edge facing the object toward the side the
-  object is on. Polaris names that edge (top, top-right, right, …) and uses **gravity** to phrase it:
-  - screen facing mostly up → "**Raise** the top-left edge 29°"
-  - screen facing mostly down → "**Lower** the … edge"
-  - screen close to vertical (up/down is ambiguous) → "Tilt the … edge toward the screen side"
-- The screen shows a phone diagram (an arrow to the object's direction within the plane, the
-  edge to move highlighted), the signed off-plane angle, and a meter. It reads aligned within 1°.
+1. **The object lies in the plane.** Off-plane angle = asin(t'_z), where **t'** = **R**ᵀ·**t** is
+   the object's direction in phone coordinates.
+2. **The object lies on the plane's most vertical line**: the steepest line across the tilted plane,
+   i.e. world-up projected onto the plane,
 
-Plane mode fixes only one condition, so it tells you the object is **somewhere in the plane**, not
-where in it. This suits a phone strapped flat on a surface parallel to a telescope tube. Once the
-plane contains the object, swing the tube *within that plane* to it. The arrow on the diagram shows
-which way that is.
+   ```
+   v = u − (u·n)·n        (u = up, n = screen normal = R·(0,0,1))
+   ```
+
+   v points uphill within the plane. Its altitude is **90° − the phone's tilt**, and it points away
+   from the direction the screen faces (when the screen faces upward).
+
+Condition 2 implies condition 1 (v lies in the plane), so together they define a single pointing
+direction, **v**. Both depend only on n, so **spinning the phone within its plane changes nothing**.
+
+Guidance:
+- **Pinpoint error** = angle between v and the target. It reads "on target" within 1°.
+- **Primary instruction**: move v onto the target, for example "Turn left 84°, make the phone
+  flatter 16°".
+  - *Turn* = rotate the phone about the vertical. v's azimuth changes by exactly that amount.
+  - *Steeper / flatter* = more upright or more level, because v's altitude is 90° − tilt.
+- **Secondary**: the off-plane angle with a meter, and which edge to raise or lower to get the
+  object into the plane at all (wording uses gravity; "toward the screen side" when the screen is
+  near vertical).
+- **Diagram**: a phone outline with a dashed line along the plane's vertical line, an arrow toward
+  the target's direction within the plane, and the edge to tilt highlighted. At pinpoint alignment
+  the arrow lies on the dashed line.
+
+Limits of this mode:
+- A phone lying **level** has no vertical line (it's undefined within 1.5° of level). The app asks
+  you to tilt it.
+- Near the **zenith** (phone almost upright) the vertical line points almost straight up, so its
+  azimuth becomes sensitive to small tilts. Objects high overhead are better found in Camera mode.
 
 ## Heading: compass, gyro and star sync
 
@@ -65,7 +78,7 @@ After 15 minutes in gyro mode the app suggests re-syncing.
 
 | Quantity | Typical |
 |---|---|
-| Tilt / altitude / off-plane angle, gravity part | ±0.5–1° |
+| Tilt / altitude / off-plane angle / vertical-line altitude (gravity) | ±0.5–1° |
 | Azimuth with compass, no sync | ±3–15° (site dependent) |
 | Azimuth with compass, after a sync | ±1–3° near the sync object |
 | Azimuth with gyro, after a sync | ±1–2°, then drifting a few degrees per 10–30 min |
@@ -73,7 +86,11 @@ After 15 minutes in gyro mode the app suggests re-syncing.
 Not telescope-grade pointing or plate solving: use it to get close, then a finder or a low-power
 eyepiece.
 
-## Changes from v0.2.0
+## History
+
+- v0.4.0: plane mode pinpoints with the plane's most vertical line (previously only "in the plane").
+
+### v0.3.0 changes from v0.2.0
 
 The *Simple* and *Mounting profile* models were replaced by these two modes at the user's request.
 The multi-star `MountingCalibration` solver remains in `core` (tested) but is no longer exposed in

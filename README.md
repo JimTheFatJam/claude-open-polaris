@@ -44,9 +44,10 @@ altitude/azimuth, RA/Dec, magnitude, size, Moon separation, rise/transit/set and
 
 **Telescope (experimental)**: navigate to a selected object with the phone's sensors, in two modes:
 - **Camera**: point the back of the phone straight at the object (azimuth/altitude push-to guide).
-- **Phone plane**: tilt the phone until its flat plane passes through the object. Spinning the phone
-  within its own plane doesn't matter. Using gravity, Polaris tells you which edge to raise or
-  lower and by how much, with a live phone diagram and an alignment meter.
+- **Phone plane**: tilt the phone until the object lies on its plane's **most vertical line** (the
+  steepest line across the screen; altitude = 90° − tilt). Spinning the phone within its own plane
+  doesn't matter. Polaris shows a pinpoint error and instructions ("Turn left 84°, make the phone
+  flatter 16°"), plus an off-plane meter and a live phone diagram.
 - Heading from the **compass** (declination-corrected, with interference warnings) or **gyro only**
   (immune to magnetic interference, drifts slowly). A one-star **sync** corrects the heading for the
   session. Method and accuracy: [docs/TELESCOPE.md](docs/TELESCOPE.md). It degrades gracefully on

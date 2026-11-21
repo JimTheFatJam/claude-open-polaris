@@ -95,8 +95,10 @@ Only the weather-dependent scores need the network.
 - **Two navigation modes** (`PhoneGuidance`). *Camera*: the rear-camera axis R·(0,0,−1) as az/alt,
   with a push-to guide. *Phone plane*: the target t expressed in phone coordinates (Rᵀt); its
   out-of-plane angle asin(t_z) is the single quantity to zero, which is invariant to spinning the
-  phone within its plane. The edge to tilt follows the in-plane direction of t, and "raise/lower"
-  wording comes from the screen normal's vertical component (gravity). See [TELESCOPE.md](TELESCOPE.md).
+  phone within its plane. For pinpoint accuracy the target must also lie on the plane's most
+  vertical line v = u − (u·n)n, which then acts as the pointing direction (az/alt guide: turn about
+  the vertical, steeper/flatter). The edge to tilt follows the in-plane direction of t, and
+  "raise/lower" wording comes from the screen normal's vertical component (gravity). See [TELESCOPE.md](TELESCOPE.md).
 - Heading source: `TYPE_ROTATION_VECTOR` (compass, declination-corrected) or
   `TYPE_GAME_ROTATION_VECTOR` (gyro only). A one-star camera-style sync measures a session heading
   correction used by both modes. Syncs average 1.5 s of readings and are rejected if the phone

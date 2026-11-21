@@ -117,8 +117,8 @@ fun TelescopeScreen(container: AppContainer) {
                 Text(
                     when (s.mode) {
                         PointingMode.CAMERA -> "Point the back of the phone straight at the object, like taking its photo."
-                        PointingMode.PLANE -> "Tilt the phone until its flat plane passes through the object. Spinning the phone within its plane " +
-                            "(top edge left or right) doesn't matter — only the plane's tilt does."
+                        PointingMode.PLANE -> "Tilt the phone until the object lies on its plane's most vertical line (the steepest line across the screen). " +
+                            "Spinning the phone within its plane (top edge left or right) doesn't matter — only the plane's tilt does."
                     },
                     style = MaterialTheme.typography.bodySmall, color = PolarisColors.Muted,
                 )
@@ -172,18 +172,25 @@ private fun PlaneCard(s: TelescopeUi) {
                     PlaneDiagram(g, Modifier.size(width = 120.dp, height = 190.dp))
                     Spacer(Modifier.width(16.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("Off plane", style = MaterialTheme.typography.labelMedium, color = PolarisColors.Muted)
-                        Text("%+.1f°".format(g.offsetDeg), style = MaterialTheme.typography.displayMedium.merge(MonoNumbers),
-                            color = offsetColor(g.offsetDeg))
+                        Text("Pinpoint error", style = MaterialTheme.typography.labelMedium, color = PolarisColors.Muted)
+                        Text(g.separationDeg?.let { "%.1f°".format(it) } ?: "—", style = MaterialTheme.typography.displayMedium.merge(MonoNumbers),
+                            color = g.separationDeg?.let { offsetColor(it) } ?: PolarisColors.Faint)
                         Text(g.instruction(), style = MaterialTheme.typography.titleMedium,
                             color = if (g.aligned) PolarisColors.Excellent else PolarisColors.Starlight)
                     }
                 }
                 Spacer(Modifier.height(10.dp))
+                Text("Off plane %+.1f°".format(g.offsetDeg), style = MaterialTheme.typography.labelMedium, color = offsetColor(g.offsetDeg))
                 AlignmentMeter(g.offsetDeg, Modifier.fillMaxWidth().height(28.dp))
+                Text(g.planeInstruction(), style = MaterialTheme.typography.bodySmall, color = PolarisColors.Muted)
                 Spacer(Modifier.height(8.dp))
-                Text("Within the plane the target lies toward the ${PlaneGuide.edgeName(g.inPlaneDirectionDeg)} edge (%.0f° clockwise from the top).".format(g.inPlaneDirectionDeg),
-                    style = MaterialTheme.typography.bodySmall, color = PolarisColors.Muted)
+                g.verticalLine?.let {
+                    KeyValue("Plane's vertical line points", "Az %.0f° (%s) · Alt %.0f°".format(it.azimuthDeg, Formatter.compassPoint(it.azimuthDeg), it.altitudeDeg))
+                }
+                g.verticalLineInPlaneDeg?.let {
+                    Text("On the phone, the vertical line runs toward the ${PlaneGuide.edgeName(it)} edge (dashed); the arrow shows the target.",
+                        style = MaterialTheme.typography.bodySmall, color = PolarisColors.Faint)
+                }
             }
         }
         s.planeNormal?.let {
@@ -194,7 +201,11 @@ private fun PlaneCard(s: TelescopeUi) {
     }
 }
 
-/** Phone outline (screen view) with an arrow to where the target lies in the plane and the edge to tilt highlighted. */
+/**
+ * Phone outline (screen view): dashed line = the plane's most vertical line, arrow = the target's
+ * direction within the plane, highlighted edge = which edge to tilt to bring the target into the plane.
+ * At pinpoint alignment the arrow lies on the dashed line.
+ */
 @Composable
 private fun PlaneDiagram(g: PlaneGuide, modifier: Modifier) {
     Canvas(modifier.semantics { contentDescription = g.instruction() }) {
@@ -206,7 +217,14 @@ private fun PlaneDiagram(g: PlaneGuide, modifier: Modifier) {
         drawRoundRect(PolarisColors.SurfaceHigh, tl, Size(w, h), CornerRadius(14.dp.toPx()))
         drawRoundRect(PolarisColors.Outline, tl, Size(w, h), CornerRadius(14.dp.toPx()), style = Stroke(2.dp.toPx()))
         // Edge (or corner) to tilt: the point where a ray from the centre at edgeDeg meets the outline.
-        if (!g.aligned) {
+        // The plane's most vertical line (dashed), from the centre toward the edge it runs to.
+        g.verticalLineInPlaneDeg?.let { d ->
+            val a = Math.toRadians(d)
+            val len = min(w, h) * 0.46f
+            drawLine(PolarisColors.Accent, c, c + Offset((sin(a) * len).toFloat(), (-cos(a) * len).toFloat()), 2.5.dp.toPx(),
+                StrokeCap.Round, PathEffect.dashPathEffect(floatArrayOf(10f, 8f)))
+        }
+        if (!g.inPlane) {
             val e = Math.toRadians(g.edgeDeg)
             val dx = sin(e).toFloat(); val dy = -cos(e).toFloat()
             val t = min(if (dx != 0f) (w / 2) / abs(dx) else Float.MAX_VALUE, if (dy != 0f) (h / 2) / abs(dy) else Float.MAX_VALUE)
