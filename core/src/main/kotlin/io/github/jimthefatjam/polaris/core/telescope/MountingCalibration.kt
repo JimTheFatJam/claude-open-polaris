@@ -264,7 +264,7 @@ object MountingCalibration {
     }
 
     /** Gram–Schmidt on the columns (the images of the device axes). */
-    internal fun orthonormalize(m: DoubleArray): DoubleArray {
+    fun orthonormalize(m: DoubleArray): DoubleArray {
         val c0 = Vec3(m[0], m[3], m[6]).normalized()
         var c1 = Vec3(m[1], m[4], m[7])
         c1 = (c1 + c0 * -(c0 dot c1)).normalized()

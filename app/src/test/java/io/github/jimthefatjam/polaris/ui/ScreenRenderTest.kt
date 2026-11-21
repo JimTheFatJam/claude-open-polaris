@@ -90,6 +90,15 @@ class ScreenRenderTest {
         }
     }
 
+    /** Rotation-vector quaternion (sin 20°, 0, 0, cos 20°): phone pitched 40° about its X axis. */
+    private fun sendRotation(ssm: org.robolectric.shadows.ShadowSensorManager) {
+        val ev = org.robolectric.shadows.ShadowSensorManager.createSensorEvent(4, android.hardware.Sensor.TYPE_ROTATION_VECTOR)
+        ev.values[0] = 0.342f; ev.values[1] = 0f; ev.values[2] = 0f; ev.values[3] = 0.940f
+        ssm.sendSensorEventToListeners(ev)
+        compose.mainClock.advanceTimeBy(300)
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+    }
+
     private var lastState: () -> String = { "" }
 
     private fun tab(label: String) {
@@ -132,25 +141,18 @@ class ScreenRenderTest {
         tab("Explore"); capture("06_explore.png")
         tab("Telescope"); capture("07_telescope.png")
 
-        // Profile mode with a saved mounting (tube 65° clockwise from the phone's top edge).
-        runBlocking {
-            container.settings.saveProfile(io.github.jimthefatjam.polaris.core.telescope.MountingProfile(
-                "test", "Refractor (test)", kotlin.math.sin(Math.toRadians(65.0)), kotlin.math.cos(Math.toRadians(65.0)), 0.0,
-                4, 0.8, now.toEpochMilli()))
-        }
+        // Plane mode (default) navigating to Jupiter, phone tilted 40° up about its X axis.
         pumpUntil { container.observing.state.value.location != null }
-        repeat(5) {
-            // Phone tilted 40° up about its X axis: rotation-vector quaternion (sin 20°, 0, 0, cos 20°).
-            val ev = org.robolectric.shadows.ShadowSensorManager.createSensorEvent(4, android.hardware.Sensor.TYPE_ROTATION_VECTOR)
-            ev.values[0] = 0.342f; ev.values[1] = 0f; ev.values[2] = 0f; ev.values[3] = 0.940f
-            ssm.sendSensorEventToListeners(ev)
-            compose.mainClock.advanceTimeBy(300)
-        }
-        capture("09_telescope_profile.png")
-        compose.onAllNodes(hasScrollAction())[0].performScrollToIndex(4)
-        capture("10_telescope_profile_cards.png")
-        compose.onAllNodes(hasScrollAction())[0].performScrollToIndex(7)
-        capture("11_telescope_calibration.png")
+        repeat(3) { sendRotation(ssm) }
+        compose.onAllNodesWithText("Choose")[0].performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onAllNodesWithText("Jupiter")[0].performClick()
+        repeat(5) { sendRotation(ssm) }
+        capture("09_telescope_plane.png")
+        // Camera mode
+        compose.onAllNodesWithText("Camera")[0].performClick()
+        repeat(5) { sendRotation(ssm) }
+        capture("10_telescope_camera.png")
         tab("Settings"); capture("08_settings.png")
     }
 }

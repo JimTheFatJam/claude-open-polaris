@@ -12,7 +12,7 @@ what is well placed in your sky right now and includes an experimental phone-sen
 <img src="docs/screenshots/02_tonight_factors.jpg" width="200" alt="Best times, hourly forecast and weather">
 <img src="docs/screenshots/05_sky.jpg" width="200" alt="Sky map">
 <img src="docs/screenshots/04_tonight_sun_moon.jpg" width="200" alt="Sun, Moon and recommended objects">
-<img src="docs/screenshots/09_telescope_profile.jpg" width="200" alt="Telescope mounting profile mode">
+<img src="docs/screenshots/09_telescope_plane.jpg" width="200" alt="Telescope phone-plane navigation">
 </p>
 
 <sub>Screenshots are rendered by the automated UI test (`ScreenRenderTest`) with a test-only
@@ -42,18 +42,15 @@ every object above the horizon ranked by observability.
 Moon, 7 planets, 35 bright stars and doubles, 37 deep-sky objects). The detail sheet shows
 altitude/azimuth, RA/Dec, magnitude, size, Moon separation, rise/transit/set and observing notes.
 
-**Telescope (experimental)**: push-to guidance (Δaz/Δalt plus separation) from the phone's sensors.
-- **Mounting profiles (v0.2.0)**: the phone only has to lie *parallel* to the tube, at any angle.
-  A one-time multi-star calibration measures the tube direction in the phone's own frame (in-plane
-  angle and tilt). Profiles are saved and reused, so later sessions need at most a one-star sync.
-  Correct for any roll of the tube or phone.
-- Heading from the **compass** (absolute, interference-prone) or **gyro only** (immune to magnetic
-  interference, drifts slowly, synced on a star). Declination correction, compass-accuracy and
-  field-strength warnings, still-burst averaging, and an altitude check that warns if the phone has
-  moved on its mount.
-- **Simple mode** (v0.1.0 behaviour: top edge or rear camera plus a one-star offset) is kept as a fallback.
-- Method and accuracy: [docs/TELESCOPE_MOUNTING.md](docs/TELESCOPE_MOUNTING.md). It degrades
-  gracefully on devices without sensors.
+**Telescope (experimental)**: navigate to a selected object with the phone's sensors, in two modes:
+- **Camera**: point the back of the phone straight at the object (azimuth/altitude push-to guide).
+- **Phone plane**: tilt the phone until its flat plane passes through the object. Spinning the phone
+  within its own plane doesn't matter. Using gravity, Polaris tells you which edge to raise or
+  lower and by how much, with a live phone diagram and an alignment meter.
+- Heading from the **compass** (declination-corrected, with interference warnings) or **gyro only**
+  (immune to magnetic interference, drifts slowly). A one-star **sync** corrects the heading for the
+  session. Method and accuracy: [docs/TELESCOPE.md](docs/TELESCOPE.md). It degrades gracefully on
+  devices without sensors.
 
 **Settings**: device or manual location (place search or coordinates), Bortle class, metric or
 imperial units, auto-refresh, and an About section with the method and attributions.
@@ -71,7 +68,7 @@ Seeing and transparency are **estimates** because no public weather API measures
 - Full method: [docs/STARGAZING_SCORING.md](docs/STARGAZING_SCORING.md)
 - Science & sources: [docs/ASTRONOMY_RESEARCH.md](docs/ASTRONOMY_RESEARCH.md)
 - Code structure: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- Telescope mounting model: [docs/TELESCOPE_MOUNTING.md](docs/TELESCOPE_MOUNTING.md)
+- Telescope navigation modes: [docs/TELESCOPE.md](docs/TELESCOPE.md)
 
 ## Install the APK
 
