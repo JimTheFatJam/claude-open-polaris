@@ -92,8 +92,15 @@ Only the weather-dependent scores need the network.
 - `PointingMath` maps the device→ENU rotation matrix and the chosen phone axis (top edge or rear
   camera) to azimuth/altitude. It corrects magnetic declination with Android's
   `GeomagneticField` (World Magnetic Model) and smooths azimuth circularly.
-- One-star alignment (`AlignmentOffset`) removes the constant azimuth/altitude offset caused by
-  compass bias and phone-to-tube mounting. Push-to shows the signed Δaz/Δalt and the separation.
+- **Two pointing models.** *Simple* (v0.1.0): a fixed phone axis plus a world-frame az/alt offset
+  (`AlignmentOffset`). *Mounting profile* (v0.2.0, `MountingCalibration`): the tube axis is a
+  calibrated unit vector **d** in the phone's frame, and pointing = R·**d** plus a per-session heading
+  correction β. Calibration solves d and β from 2–5 star sightings (closed form for d, 1-D search
+  for β, with a degeneracy check). Profiles are stored as JSON in DataStore and reused. A one-star
+  sync re-estimates β only. See [TELESCOPE_MOUNTING.md](TELESCOPE_MOUNTING.md).
+- Heading source: `TYPE_ROTATION_VECTOR` (compass) or `TYPE_GAME_ROTATION_VECTOR` (gyro only,
+  profile mode). Sightings and syncs average 1.5 s of readings and are rejected if the phone moved
+  more than 0.6°.
 - Interference detection: field magnitude outside 20–70 µT, and sensor accuracy status.
 - Nothing in the stargazing features depends on this module.
 
@@ -120,7 +127,7 @@ deterministic forecast and a fixed time. Hilt could replace it if the graph grow
 | Astronomy | `core/src/test/.../astro` | Sun altitude, sunrise/sunset vs USNO (±3 min), twilight ordering, polar day/night, no-astronomical-darkness, Moon phases vs published dates, fixed-object rise/set consistency, circumpolar cases, catalog sanity |
 | Scoring | `core/src/test/.../scoring` | category thresholds, gates, monotonicity in cloud, bounds with extreme inputs, missing-data handling, observation-type differences, best windows |
 | Weather | `core/src/test/.../weather` | JSON parsing incl. nulls, MockWebServer 429/400/network errors, cache freshness, throttling, back-off, stale fallback, file cache |
-| Telescope | `core/src/test/.../telescope` | rotation-matrix → az/alt, declination, wrap-around, alignment, smoothing |
+| Telescope | `core/src/test/.../telescope` | rotation-matrix → az/alt, declination, wrap-around, alignment, smoothing; mounting calibration recovers angle/tilt/heading from synthetic sightings (exact and noisy), degeneracy detection, roll invariance, session sync, averaging, profile JSON |
 | UI smoke | `app/src/test/.../ScreenRenderTest.kt` | Robolectric renders all five screens with a fixture forecast; also produces screenshots |
 
 ## Versions

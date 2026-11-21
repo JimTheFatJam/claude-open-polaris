@@ -98,6 +98,12 @@ class ScreenRenderTest {
     }
 
     @Test fun allScreensRender() {
+        // Simulated sensors so the Telescope screen renders its full UI.
+        val sm = ApplicationProvider.getApplicationContext<android.content.Context>().getSystemService(android.content.Context.SENSOR_SERVICE) as android.hardware.SensorManager
+        val ssm = org.robolectric.Shadows.shadowOf(sm)
+        listOf(android.hardware.Sensor.TYPE_ROTATION_VECTOR, android.hardware.Sensor.TYPE_GAME_ROTATION_VECTOR,
+            android.hardware.Sensor.TYPE_ACCELEROMETER, android.hardware.Sensor.TYPE_MAGNETIC_FIELD, android.hardware.Sensor.TYPE_GYROSCOPE)
+            .forEach { ssm.addSensor(org.robolectric.shadows.ShadowSensor.newInstance(it)) }
         val container = AppContainer(
             ApplicationProvider.getApplicationContext(), FixtureProvider(now), noSearch, Clock.fixed(now, ZoneOffset.UTC),
         )
@@ -125,6 +131,26 @@ class ScreenRenderTest {
         tab("Sky"); capture("05_sky.png")
         tab("Explore"); capture("06_explore.png")
         tab("Telescope"); capture("07_telescope.png")
+
+        // Profile mode with a saved mounting (tube 65° clockwise from the phone's top edge).
+        runBlocking {
+            container.settings.saveProfile(io.github.jimthefatjam.polaris.core.telescope.MountingProfile(
+                "test", "Refractor (test)", kotlin.math.sin(Math.toRadians(65.0)), kotlin.math.cos(Math.toRadians(65.0)), 0.0,
+                4, 0.8, now.toEpochMilli()))
+        }
+        pumpUntil { container.observing.state.value.location != null }
+        repeat(5) {
+            // Phone tilted 40° up about its X axis: rotation-vector quaternion (sin 20°, 0, 0, cos 20°).
+            val ev = org.robolectric.shadows.ShadowSensorManager.createSensorEvent(4, android.hardware.Sensor.TYPE_ROTATION_VECTOR)
+            ev.values[0] = 0.342f; ev.values[1] = 0f; ev.values[2] = 0f; ev.values[3] = 0.940f
+            ssm.sendSensorEventToListeners(ev)
+            compose.mainClock.advanceTimeBy(300)
+        }
+        capture("09_telescope_profile.png")
+        compose.onAllNodes(hasScrollAction())[0].performScrollToIndex(4)
+        capture("10_telescope_profile_cards.png")
+        compose.onAllNodes(hasScrollAction())[0].performScrollToIndex(7)
+        capture("11_telescope_calibration.png")
         tab("Settings"); capture("08_settings.png")
     }
 }

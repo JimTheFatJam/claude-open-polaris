@@ -12,12 +12,13 @@ what is well placed in your sky right now and includes an experimental phone-sen
 <img src="docs/screenshots/02_tonight_factors.jpg" width="200" alt="Best times, hourly forecast and weather">
 <img src="docs/screenshots/05_sky.jpg" width="200" alt="Sky map">
 <img src="docs/screenshots/04_tonight_sun_moon.jpg" width="200" alt="Sun, Moon and recommended objects">
+<img src="docs/screenshots/09_telescope_profile.jpg" width="200" alt="Telescope mounting profile mode">
 </p>
 
 <sub>Screenshots are rendered by the automated UI test (`ScreenRenderTest`) with a test-only
 fixture forecast for Izaña, Tenerife on 2025-01-10 21:30 UTC. The astronomy in them is real.</sub>
 
-## Features (v0.1.0)
+## Features
 
 **Tonight** (main screen)
 - Current score and verdict ("Get the telescope out!" … "Not tonight") with a confidence level.
@@ -41,10 +42,18 @@ every object above the horizon ranked by observability.
 Moon, 7 planets, 35 bright stars and doubles, 37 deep-sky objects). The detail sheet shows
 altitude/azimuth, RA/Dec, magnitude, size, Moon separation, rise/transit/set and observing notes.
 
-**Telescope (experimental)**: live orientation from rotation-vector or accelerometer+magnetometer
-sensors, magnetic declination correction, compass-accuracy and interference warnings, a
-phone-mount axis choice, one-star alignment and a push-to guide (Δaz/Δalt plus separation).
-Accuracy limits are stated plainly. It degrades gracefully on devices without sensors.
+**Telescope (experimental)**: push-to guidance (Δaz/Δalt plus separation) from the phone's sensors.
+- **Mounting profiles (v0.2.0)**: the phone only has to lie *parallel* to the tube, at any angle.
+  A one-time multi-star calibration measures the tube direction in the phone's own frame (in-plane
+  angle and tilt). Profiles are saved and reused, so later sessions need at most a one-star sync.
+  Correct for any roll of the tube or phone.
+- Heading from the **compass** (absolute, interference-prone) or **gyro only** (immune to magnetic
+  interference, drifts slowly, synced on a star). Declination correction, compass-accuracy and
+  field-strength warnings, still-burst averaging, and an altitude check that warns if the phone has
+  moved on its mount.
+- **Simple mode** (v0.1.0 behaviour: top edge or rear camera plus a one-star offset) is kept as a fallback.
+- Method and accuracy: [docs/TELESCOPE_MOUNTING.md](docs/TELESCOPE_MOUNTING.md). It degrades
+  gracefully on devices without sensors.
 
 **Settings**: device or manual location (place search or coordinates), Bortle class, metric or
 imperial units, auto-refresh, and an About section with the method and attributions.
@@ -62,17 +71,18 @@ Seeing and transparency are **estimates** because no public weather API measures
 - Full method: [docs/STARGAZING_SCORING.md](docs/STARGAZING_SCORING.md)
 - Science & sources: [docs/ASTRONOMY_RESEARCH.md](docs/ASTRONOMY_RESEARCH.md)
 - Code structure: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- Telescope mounting model: [docs/TELESCOPE_MOUNTING.md](docs/TELESCOPE_MOUNTING.md)
 
 ## Install the APK
 
-1. Download `polaris-v0.1.0.apk` (signed release build) from the
+1. Download the latest `polaris-vX.Y.Z.apk` (signed release build) from the
    [Releases page](https://github.com/JimTheFatJam/claude-open-polaris/releases).
 2. On your phone, allow installs from your browser/file manager
    (*Settings › Apps › Special access › Install unknown apps*).
 3. Open the APK and install it. Requires Android 8.0 (API 26) or newer.
 
-Or install it over USB with `adb install -r polaris-v0.1.0.apk`. A debug build
-(`polaris-v0.1.0-debug.apk`, app id `io.github.jimthefatjam.polaris.debug`) is attached too.
+Or install it over USB with `adb install -r polaris-vX.Y.Z.apk`. A debug build
+(`…-debug.apk`, app id `io.github.jimthefatjam.polaris.debug`) is attached too.
 
 ## Build from source
 
@@ -120,4 +130,4 @@ publish a GitHub Release with both APKs.
 
 See "Deferred features" in the v0.1.0 release notes: notifications for clear nights, a larger
 catalog with star patterns and constellation lines, Room-backed observing logs, satellite and ISS
-passes, a light-pollution map lookup, two-star alignment, and camera-based plate solving.
+passes, a light-pollution map lookup, flexure modelling, and camera-based plate solving.

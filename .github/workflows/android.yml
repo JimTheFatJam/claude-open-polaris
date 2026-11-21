@@ -75,6 +75,6 @@ jobs:
         with:
           tag_name: ${{ inputs.release_tag || github.ref_name }}
           target_commitish: ${{ github.sha }}
-          name: "Polaris ${{ inputs.release_tag || github.ref_name }} - Initial MVP"
+          name: "Polaris ${{ inputs.release_tag || github.ref_name }}"
           body_path: docs/releases/${{ inputs.release_tag || github.ref_name }}.md
           files: out/*

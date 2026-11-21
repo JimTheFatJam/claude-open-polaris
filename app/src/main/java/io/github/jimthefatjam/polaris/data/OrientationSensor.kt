@@ -18,6 +18,8 @@ enum class OrientationSource(val label: String) {
 
 data class SensorCapabilities(
     val rotationVector: Boolean,
+    /** TYPE_GAME_ROTATION_VECTOR: gyro + accelerometer fusion without the magnetometer. */
+    val gameRotationVector: Boolean = false,
     val accelerometer: Boolean,
     val magnetometer: Boolean,
     val gyroscope: Boolean,
@@ -50,16 +52,22 @@ class OrientationSensor(context: Context) {
 
     val capabilities = SensorCapabilities(
         rotationVector = sm?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR) != null,
+        gameRotationVector = sm?.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR) != null,
         accelerometer = sm?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) != null,
         magnetometer = sm?.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD) != null,
         gyroscope = sm?.getDefaultSensor(Sensor.TYPE_GYROSCOPE) != null,
     )
 
-    fun readings(): Flow<OrientationReading> = callbackFlow {
+    /**
+     * @param gyroHeading use TYPE_GAME_ROTATION_VECTOR (no magnetometer): immune to magnetic
+     *   interference, but heading is relative and drifts. Falls back to the normal source if absent.
+     */
+    fun readings(gyroHeading: Boolean = false): Flow<OrientationReading> = callbackFlow {
         val manager = sm
         if (manager == null || capabilities.source == OrientationSource.NONE) {
             close(); return@callbackFlow
         }
+        val useGame = gyroHeading && capabilities.gameRotationVector
         val r = FloatArray(9)
         val gravity = FloatArray(3)
         val geomag = FloatArray(3)
@@ -71,14 +79,14 @@ class OrientationSensor(context: Context) {
         val listener = object : SensorEventListener {
             override fun onSensorChanged(e: SensorEvent) {
                 when (e.sensor.type) {
-                    Sensor.TYPE_ROTATION_VECTOR -> {
+                    Sensor.TYPE_ROTATION_VECTOR, Sensor.TYPE_GAME_ROTATION_VECTOR -> {
                         SensorManager.getRotationMatrixFromVector(r, e.values)
                         trySend(OrientationReading(r.map { it.toDouble() }.toDoubleArray(), magAccuracy, magStrength, e.timestamp))
                     }
                     Sensor.TYPE_MAGNETIC_FIELD -> {
                         System.arraycopy(e.values, 0, geomag, 0, 3); haveMag = true
                         magStrength = sqrt((geomag[0] * geomag[0] + geomag[1] * geomag[1] + geomag[2] * geomag[2]).toDouble())
-                        if (capabilities.source == OrientationSource.ACCEL_MAG) emitAccelMag(e.timestamp)
+                        if (capabilities.source == OrientationSource.ACCEL_MAG && !useGame) emitAccelMag(e.timestamp)
                     }
                     Sensor.TYPE_ACCELEROMETER -> {
                         // Low-pass to isolate gravity.
@@ -90,7 +98,7 @@ class OrientationSensor(context: Context) {
             }
 
             private fun emitAccelMag(ts: Long) {
-                if (capabilities.source != OrientationSource.ACCEL_MAG || !haveGravity || !haveMag) return
+                if (useGame || capabilities.source != OrientationSource.ACCEL_MAG || !haveGravity || !haveMag) return
                 if (SensorManager.getRotationMatrix(r, null, gravity, geomag)) {
                     trySend(OrientationReading(r.map { it.toDouble() }.toDoubleArray(), magAccuracy, magStrength, ts))
                 }
@@ -102,7 +110,9 @@ class OrientationSensor(context: Context) {
         }
 
         val rate = SensorManager.SENSOR_DELAY_GAME
-        if (capabilities.source == OrientationSource.ROTATION_VECTOR) {
+        if (useGame) {
+            manager.registerListener(listener, manager.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR), rate)
+        } else if (capabilities.source == OrientationSource.ROTATION_VECTOR) {
             manager.registerListener(listener, manager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR), rate)
         } else {
             manager.registerListener(listener, manager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER), rate)
