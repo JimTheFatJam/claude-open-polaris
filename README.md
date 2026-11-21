@@ -65,16 +65,14 @@ Seeing and transparency are **estimates** because no public weather API measures
 
 ## Install the APK
 
-1. Download `polaris-v0.1.0-debug.apk` from the
+1. Download `polaris-v0.1.0.apk` (signed release build) from the
    [Releases page](https://github.com/JimTheFatJam/claude-open-polaris/releases).
 2. On your phone, allow installs from your browser/file manager
    (*Settings › Apps › Special access › Install unknown apps*).
 3. Open the APK and install it. Requires Android 8.0 (API 26) or newer.
 
-Or install it over USB with `adb install -r polaris-v0.1.0-debug.apk`.
-
-The v0.1.0 APK is a **debug-signed** build (application id
-`io.github.jimthefatjam.polaris.debug`), suitable for testing and sideloading.
+Or install it over USB with `adb install -r polaris-v0.1.0.apk`. A debug build
+(`polaris-v0.1.0-debug.apk`, app id `io.github.jimthefatjam.polaris.debug`) is attached too.
 
 ## Build from source
 
@@ -95,9 +93,12 @@ echo "sdk.dir=/path/to/Android/sdk" > local.properties   # or set ANDROID_HOME
 ```
 
 ### Release signing
-No keystore is committed. To build a signed release, create a keystore locally and add a
-`signingConfigs` block that reads its credentials from environment variables or
-`~/.gradle/gradle.properties`, then run `./gradlew assembleRelease`.
+No keystore is committed. `app/build.gradle.kts` signs release builds when these environment
+variables are set: `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
+`ANDROID_KEY_PASSWORD`. CI (`.github/workflows/android.yml`) gets them from the repository secrets
+`ANDROID_KEYSTORE_BASE64` (base64 keystore), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and
+`ANDROID_KEY_PASSWORD`. Push a `v*` tag, or run the workflow manually with `release_tag`, to
+publish a GitHub Release with both APKs.
 
 ## Data, privacy & permissions
 
