@@ -103,8 +103,13 @@ Only the weather-dependent scores need the network.
   `TYPE_GAME_ROTATION_VECTOR` (gyro only). A one-star camera-style sync measures a session heading
   correction used by both modes. Syncs average 1.5 s of readings and are rejected if the phone
   moved more than 0.6°. The rotation matrix is low-pass filtered and re-orthonormalised.
-- `MountingCalibration` (multi-star phone-to-tube calibration from v0.2.0) remains in `core` as a
-  tested library. Its averaging and sync helpers are used. It is no longer exposed in the UI.
+- **Telescope sync** (`TelescopeSync`): syncs on centred objects are stored as `StoredSighting`
+  (rotation matrix + target, JSON in DataStore; session-only in gyro mode). They are solved with
+  `MountingCalibration.solve` into a phone-frame telescope axis plus a heading correction. Plane mode
+  then guides with R·d. A new sync that disagrees by more than 5° replaces the old ones (the phone moved).
+- **Live tracking**: the Telescope screen recomputes object positions every second.
+  `SkyCalculator.motion` gives azimuth/altitude rates. Sync captures use the target position at the
+  middle of the capture window.
 - Interference detection: field magnitude outside 20–70 µT, and sensor accuracy status.
 - Nothing in the stargazing features depends on this module.
 

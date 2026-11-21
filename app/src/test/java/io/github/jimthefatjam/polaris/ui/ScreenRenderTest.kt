@@ -149,7 +149,20 @@ class ScreenRenderTest {
         compose.onAllNodesWithText("Jupiter")[0].performClick()
         repeat(5) { sendRotation(ssm) }
         capture("09_telescope_plane.png")
+        // Telescope sync on the Moon (seeded): the scope's line of sight is 6° from the plane's vertical line.
+        runBlocking {
+            val c = kotlin.math.cos(Math.toRadians(40.0)); val sn = kotlin.math.sin(Math.toRadians(40.0))
+            val r = listOf(1.0, 0.0, 0.0, 0.0, c, -sn, 0.0, sn, c)
+            container.settings.setTelescopeSyncs(listOf(io.github.jimthefatjam.polaris.core.telescope.StoredSighting(
+                r, 2.5, 39.0, "Moon", -3.5, now.toEpochMilli(), "COMPASS")))
+        }
+        repeat(5) { sendRotation(ssm) }
+        capture("11_telescope_synced.png")
+        compose.onAllNodes(hasScrollAction())[0].performScrollToIndex(5)
+        capture("12_telescope_sync_card.png")
         // Camera mode
+        compose.onAllNodes(hasScrollAction())[0].performScrollToIndex(0)
+        compose.mainClock.advanceTimeBy(300)
         compose.onAllNodesWithText("Camera")[0].performClick()
         repeat(5) { sendRotation(ssm) }
         capture("10_telescope_camera.png")

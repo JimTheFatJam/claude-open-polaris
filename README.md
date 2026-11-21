@@ -48,6 +48,10 @@ altitude/azimuth, RA/Dec, magnitude, size, Moon separation, rise/transit/set and
   steepest line across the screen; altitude = 90° − tilt). Spinning the phone within its own plane
   doesn't matter. Polaris shows a pinpoint error and instructions ("Turn left 84°, make the phone
   flatter 16°"), plus an off-plane meter and a live phone diagram.
+- **Telescope sync**: centre the Moon (or any bright object) in the telescope and tap Sync. Plane
+  mode then follows the telescope's *measured* line of sight, accurate enough for small planets.
+  The sync is saved, and a second sync elsewhere corrects the whole sky.
+- **Live tracking**: positions update every second, with the target's motion rate shown.
 - Heading from the **compass** (declination-corrected, with interference warnings) or **gyro only**
   (immune to magnetic interference, drifts slowly). A one-star **sync** corrects the heading for the
   session. Method and accuracy: [docs/TELESCOPE.md](docs/TELESCOPE.md). It degrades gracefully on

@@ -78,6 +78,20 @@ class SkyCalculator {
         else fixedPosition(obj.raHoursJ2000!!, obj.decDegJ2000!!, loc, at)
     }
 
+    /** Apparent motion of an object right now, from a ±30 s central difference. */
+    data class Motion(val azimuthDegPerMin: Double, val altitudeDegPerMin: Double, val totalDegPerMin: Double)
+
+    fun motion(obj: CelestialObject, loc: GeoLocation, at: Instant): Motion {
+        val a = position(obj, loc, at.minusSeconds(30))
+        val b = position(obj, loc, at.plusSeconds(30))
+        var dAz = b.azimuthDeg - a.azimuthDeg
+        if (dAz > 180) dAz -= 360
+        if (dAz < -180) dAz += 360
+        val dAlt = b.altitudeDeg - a.altitudeDeg
+        val total = angularSeparation(a.altitudeDeg, a.azimuthDeg, b.altitudeDeg, b.azimuthDeg)
+        return Motion(dAz, dAlt, total)
+    }
+
     fun sunAltitude(loc: GeoLocation, at: Instant): Double = bodyPosition(Body.Sun, loc, at).altitudeDeg
 
     // ---------------------------------------------------------------- rise / set / transit

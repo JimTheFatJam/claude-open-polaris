@@ -58,6 +58,44 @@ Limits of this mode:
 - Near the **zenith** (phone almost upright) the vertical line points almost straight up, so its
   azimuth becomes sensitive to small tilts. Objects high overhead are better found in Camera mode.
 
+## Telescope sync (plane mode): follow the real line of sight
+
+The phone's plane, and its most vertical line, is rarely exactly parallel to the telescope's line of
+sight. A few degrees of mounting offset is enough to miss a small planet like Saturn, even though
+the Sun and Moon are easy. **Telescope sync** measures the real line of sight:
+
+1. Track a bright object (the Moon is easiest) until it's centred in the telescope, or in the phone
+   camera looking through it.
+2. Choose that object and tap **Sync** while holding still. Polaris averages 1.5 s of sensor data
+   (and rejects it if the telescope moved) and computes the object's position **at that exact
+   moment**.
+3. The telescope's axis in phone coordinates is solved: **d** = **R**ᵀ·**t** for one sync, or a
+   least-squares fit with a heading correction for several syncs (`TelescopeSync`, reusing the
+   tested `MountingCalibration` solver).
+4. From then on, plane mode guides with the **telescope's line of sight** **R**·**d** ("Turn left
+   3.2°, raise the telescope 1.1°", pinpoint error to 0.1°). The plane view stays below for reference.
+
+Accuracy and lifetime:
+- **One sync** removes the mounting offset *and* the current compass error. It's most accurate near
+  the sync object, typically within ~1–2° for objects 15–20° away.
+- **Two or more syncs at different altitudes** (e.g. the Moon, then Saturn or a bright star) separate
+  heading error from mounting offset and extend accuracy across the sky. A per-sync residual and
+  fit RMS are shown.
+- If a new sync disagrees with the earlier ones by more than 5°, the phone has probably moved on the
+  tube. The earlier syncs are replaced automatically.
+- In compass mode, syncs are **saved** and reused next session, as long as the phone stays in the
+  same place on the telescope (keeping the 5 most recent). In gyro mode they last for the session,
+  because the gyro's heading reference restarts each time. Use **Reset telescope sync** after
+  re-mounting the phone.
+
+## Tracking moving objects
+
+Objects drift across the sky with Earth's rotation, up to 0.25°/min (15°/hour × cos δ). The Moon
+also moves against the stars. The Telescope screen recomputes every object's position **every
+second**, so guidance follows the target continuously. The target card shows its live motion
+(total rate plus azimuth and altitude components). Syncs use the position at the middle of the
+capture window, so even a slow sync doesn't bias the calibration.
+
 ## Heading: compass, gyro and star sync
 
 Tilt (altitude, and the off-plane angle for objects near the zenith) depends on **gravity only**.
@@ -68,9 +106,9 @@ Azimuth depends on the heading reference:
 | **Compass** (rotation vector) | Absolute, no drift. Declination corrected with the World Magnetic Model | Steel mounts, tripods, magnets, cars and electronics bias it by 2–15° |
 | **Gyro only** (game rotation vector) | Immune to magnetic interference | Arbitrary starting direction. Drifts a few degrees per 10–30 min. Needs a sync |
 
-**Star sync** (optional with the compass, required with the gyro): aim the back of the phone at a
-bright object, hold still for 1.5 s and tap *Sync*. The azimuth difference is stored as this
-session's heading correction and used by **both** modes. The altitude difference is shown as a
+**Star sync (camera mode)**: aim the back of the phone at a bright object, hold still for 1.5 s and
+tap *Sync*. The azimuth difference is stored as this session's heading correction. (In plane mode,
+use the telescope sync above instead. It corrects heading and mounting together.) The altitude difference is shown as a
 sanity check. Readings are averaged, and the sync is rejected if the phone moved more than 0.6°.
 After 15 minutes in gyro mode the app suggests re-syncing.
 
@@ -88,6 +126,7 @@ eyepiece.
 
 ## History
 
+- v0.5.0: telescope sync (follow the measured line of sight; saved; multi-object) and live tracking of moving objects with motion rates.
 - v0.4.0: plane mode pinpoints with the plane's most vertical line (previously only "in the plane").
 
 ### v0.3.0 changes from v0.2.0

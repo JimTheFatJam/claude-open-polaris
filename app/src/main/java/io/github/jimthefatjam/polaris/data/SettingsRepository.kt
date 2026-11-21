@@ -12,6 +12,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import io.github.jimthefatjam.polaris.core.model.GeoLocation
 import io.github.jimthefatjam.polaris.core.model.LocationSource
 import io.github.jimthefatjam.polaris.core.telescope.HeadingSource
+import io.github.jimthefatjam.polaris.core.telescope.StoredSighting
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -36,6 +37,8 @@ data class UserSettings(
     val autoRefresh: Boolean = true,
     val pointingMode: PointingMode = PointingMode.PLANE,
     val headingSource: HeadingSource = HeadingSource.COMPASS,
+    /** Telescope line-of-sight syncs (compass mode; gyro-mode syncs are session-only). */
+    val telescopeSyncs: List<StoredSighting> = emptyList(),
 )
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "polaris_settings")
@@ -57,6 +60,7 @@ class SettingsRepository(private val context: Context) {
         // v0.3.0 keys ("pointing_mode" held v0.2.0 values, so a new key avoids misreading them).
         val pointingMode = stringPreferencesKey("navigation_mode")
         val headingSource = stringPreferencesKey("heading_source")
+        val telescopeSyncs = stringPreferencesKey("telescope_syncs_json")
     }
 
     val settings: Flow<UserSettings> = context.dataStore.data.map { p ->
@@ -69,6 +73,7 @@ class SettingsRepository(private val context: Context) {
             autoRefresh = p[Keys.autoRefresh] ?: true,
             pointingMode = p[Keys.pointingMode]?.let { runCatching { PointingMode.valueOf(it) }.getOrNull() } ?: PointingMode.PLANE,
             headingSource = p[Keys.headingSource]?.let { runCatching { HeadingSource.valueOf(it) }.getOrNull() } ?: HeadingSource.COMPASS,
+            telescopeSyncs = StoredSighting.listFromJson(p[Keys.telescopeSyncs]),
         )
     }
 
@@ -97,4 +102,7 @@ class SettingsRepository(private val context: Context) {
     suspend fun setAutoRefresh(v: Boolean) = context.dataStore.edit { it[Keys.autoRefresh] = v }
     suspend fun setPointingMode(m: PointingMode) = context.dataStore.edit { it[Keys.pointingMode] = m.name }
     suspend fun setHeadingSource(h: HeadingSource) = context.dataStore.edit { it[Keys.headingSource] = h.name }
+    suspend fun setTelescopeSyncs(list: List<StoredSighting>) = context.dataStore.edit {
+        if (list.isEmpty()) it.remove(Keys.telescopeSyncs) else it[Keys.telescopeSyncs] = StoredSighting.listToJson(list)
+    }
 }

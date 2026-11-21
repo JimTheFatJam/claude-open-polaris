@@ -79,7 +79,7 @@ fun TelescopeScreen(container: AppContainer) {
 
     when (picker) {
         Picker.TARGET -> ObjectPicker("Navigate to", s.candidates, { vm.chooseTarget(it); picker = Picker.NONE }, { picker = Picker.NONE })
-        Picker.SYNC -> ObjectPicker("Sync on", s.candidates.filter { (it.obj.magnitude ?: 9.0) < 2.2 || it.obj.id == "moon" },
+        Picker.SYNC -> ObjectPicker("Sync on", s.candidates.filter { (it.obj.magnitude ?: 9.0) < 2.2 || it.obj.id == "moon" || it.obj.type == io.github.jimthefatjam.polaris.core.model.ObjectType.PLANET },
             { vm.chooseSyncObject(it); picker = Picker.NONE }, { picker = Picker.NONE })
         Picker.NONE -> {}
     }
@@ -135,6 +135,10 @@ fun TelescopeScreen(container: AppContainer) {
                             Text("Az %.1f° (%s) · Alt %.1f°".format(it.direction.azimuthDeg, Formatter.compassPoint(it.direction.azimuthDeg), it.direction.altitudeDeg),
                                 style = MaterialTheme.typography.bodySmall, color = PolarisColors.Muted)
                         }
+                        s.targetMotion?.let { m ->
+                            Text("Live: moving %.2f°/min (az %+.2f, alt %+.2f) · updated every second".format(m.totalDegPerMin, m.azimuthDegPerMin, m.altitudeDegPerMin),
+                                style = MaterialTheme.typography.bodySmall, color = PolarisColors.Accent)
+                        }
                     }
                     OutlinedButton(onClick = { picker = Picker.TARGET }, enabled = s.location != null) { Text(if (s.target == null) "Choose" else "Change") }
                 }
@@ -150,6 +154,7 @@ fun TelescopeScreen(container: AppContainer) {
                 PointingMode.CAMERA -> CameraCard(s)
             }
         }
+        if (s.mode == PointingMode.PLANE) item { TelescopeSyncCard(s, vm, onPickSync = { picker = Picker.SYNC }) }
         item { HeadingCard(s, vm, onPickSync = { picker = Picker.SYNC }) }
         item { LimitationsCard(s.mode) }
     }
@@ -158,14 +163,17 @@ fun TelescopeScreen(container: AppContainer) {
 // ---------------------------------------------------------------------- Plane mode
 
 @Composable
-private fun PlaneCard(s: TelescopeUi) {
+private fun PlaneCard(s: TelescopeUi) = Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    if (s.telescopeSynced && s.hasReading) SyncedScopeCard(s)
     PolarisCard(Modifier.fillMaxWidth()) {
-        Text("Phone plane", style = MaterialTheme.typography.titleMedium)
+        Text(if (s.telescopeSynced) "Phone plane (reference)" else "Phone plane", style = MaterialTheme.typography.titleMedium)
+        if (s.telescopeSynced) Text("Guidance above follows the synced telescope line of sight; the plane view below is for reference.",
+            style = MaterialTheme.typography.bodySmall, color = PolarisColors.Faint)
         val g = s.planeGuide
         when {
             !s.hasReading -> Text("Waiting for sensor data…", color = PolarisColors.Muted)
             s.target == null -> Text("Choose a target to navigate to.", color = PolarisColors.Muted)
-            !s.headingValid -> Text("Gyro-only heading has no absolute direction yet — sync on a star below first.", color = PolarisColors.Fair)
+            !s.headingValid -> Text("Gyro-only heading has no absolute direction yet — do a telescope sync below first.", color = PolarisColors.Fair)
             g != null -> {
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -294,6 +302,87 @@ private fun CameraCard(s: TelescopeUi) {
     }
 }
 
+// ---------------------------------------------------------------------- Telescope sync
+
+/** Pointing that follows the telescope's synced line of sight (plane mode). */
+@Composable
+private fun SyncedScopeCard(s: TelescopeUi) {
+    PolarisCard(Modifier.fillMaxWidth()) {
+        Text("Telescope line of sight (synced)", style = MaterialTheme.typography.titleMedium)
+        val p = s.scopePointing
+        if (p != null) Text("Pointing at Az %.1f° (%s) · Alt %+.1f°".format(p.azimuthDeg, Formatter.compassPoint(p.azimuthDeg), p.altitudeDeg),
+            style = MaterialTheme.typography.bodyMedium, color = PolarisColors.Muted)
+        val g = s.scopeGuide
+        if (g == null) {
+            Text("Choose a target to navigate to.", color = PolarisColors.Muted)
+            return@PolarisCard
+        }
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Pinpoint error", style = MaterialTheme.typography.labelMedium, color = PolarisColors.Muted)
+                Text("%.1f°".format(g.separationDeg), style = MaterialTheme.typography.displayMedium.merge(MonoNumbers), color = offsetColor(g.separationDeg))
+                Text(scopeText(g), style = MaterialTheme.typography.titleMedium,
+                    color = if (g.separationDeg < PlaneGuide.ALIGNED_DEG) PolarisColors.Excellent else PolarisColors.Starlight)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        PushToView(g, Modifier.fillMaxWidth().height(180.dp))
+        s.telescopeCalibration?.let { c ->
+            if (c.residualsDeg.size == 1) Text("Calibrated on one object: most accurate near ${s.telescopeSyncs.firstOrNull()?.name}. Add a second sync elsewhere in the sky for whole-sky accuracy.",
+                style = MaterialTheme.typography.bodySmall, color = PolarisColors.Faint)
+        }
+    }
+}
+
+private fun scopeText(g: PushToGuide): String {
+    if (g.separationDeg < PlaneGuide.ALIGNED_DEG) return "On target"
+    val az = if (abs(g.deltaAzimuthDeg) < 0.5) null else (if (g.deltaAzimuthDeg > 0) "Turn right " else "Turn left ") + "%.1f°".format(abs(g.deltaAzimuthDeg))
+    val alt = if (abs(g.deltaAltitudeDeg) < 0.5) null else (if (g.deltaAltitudeDeg > 0) "raise the telescope " else "lower the telescope ") + "%.1f°".format(abs(g.deltaAltitudeDeg))
+    return listOfNotNull(az, alt).joinToString(", ").replaceFirstChar { it.uppercase() }
+}
+
+@Composable
+private fun TelescopeSyncCard(s: TelescopeUi, vm: TelescopeViewModel, onPickSync: () -> Unit) {
+    PolarisCard(Modifier.fillMaxWidth()) {
+        Text("Telescope sync" + if (s.headingSource == HeadingSource.GYRO && !s.telescopeSynced) " (required)" else "", style = MaterialTheme.typography.titleMedium)
+        Text("Centre a bright object (the Moon is easiest) in the telescope, or in the phone camera looking through it. Hold still and tap Sync. " +
+            "The app then follows the telescope's real line of sight instead of the phone's plane, which removes the mounting and compass error. " +
+            "Then sync a second object at a different altitude (e.g. a planet or a bright star) to correct the whole sky.",
+            style = MaterialTheme.typography.bodySmall, color = PolarisColors.Muted)
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onPickSync, enabled = s.location != null) { Text(s.syncObject?.obj?.name ?: "Choose object") }
+            Button(onClick = vm::telescopeSync, enabled = s.syncObject != null && s.hasReading && !s.recording) {
+                Text(if (s.recording) "Hold still…" else if (s.telescopeSynced) "Add sync" else "Sync")
+            }
+        }
+        s.syncObject?.let { KeyValue("${it.obj.name} is at", "Az %.1f° · Alt %.1f°".format(it.direction.azimuthDeg, it.direction.altitudeDeg)) }
+        if (s.telescopeSyncs.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            val timeFmt = remember { java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT) }
+            s.telescopeSyncs.forEachIndexed { i, sy ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                    Text("${i + 1}. ${sy.name}", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                    Text(timeFmt.format(java.util.Date.from(sy.time)), style = MaterialTheme.typography.bodySmall, color = PolarisColors.Muted)
+                    sy.residualDeg?.takeIf { s.telescopeSyncs.size > 1 }?.let {
+                        Spacer(Modifier.width(8.dp))
+                        Text("±%.1f°".format(it), style = MaterialTheme.typography.bodySmall, color = if (it > 2) PolarisColors.Poor else PolarisColors.Excellent)
+                    }
+                }
+            }
+            s.telescopeCalibration?.let { c ->
+                KeyValue("Heading correction", if (c.headingSolved) "%+.1f° (solved)".format(c.headingCorrectionDeg) else "included in the sync")
+                if (c.residualsDeg.size > 1) KeyValue("Fit RMS", "%.1f°".format(c.rmsDeg), if (c.rmsDeg > 2) PolarisColors.Poor else PolarisColors.Excellent)
+                c.warnings.filterNot { it.contains("one sighting") }.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall, color = PolarisColors.Fair) }
+            }
+            if (s.headingSource == HeadingSource.GYRO) Text("Gyro mode: syncs last for this session only.", style = MaterialTheme.typography.bodySmall, color = PolarisColors.Faint)
+            else Text("Saved — reused next time, as long as the phone stays in the same place on the telescope.", style = MaterialTheme.typography.bodySmall, color = PolarisColors.Faint)
+            TextButton(onClick = vm::resetTelescopeSync) { Text("Reset telescope sync") }
+        }
+    }
+}
+
 // ---------------------------------------------------------------------- Heading & sync
 
 @Composable
@@ -321,11 +410,12 @@ private fun HeadingCard(s: TelescopeUi, vm: TelescopeViewModel, onPickSync: () -
                 style = MaterialTheme.typography.bodySmall, color = PolarisColors.Fair)
         }
 
+        if (s.mode != PointingMode.CAMERA) return@PolarisCard
         Spacer(Modifier.height(10.dp))
         HorizontalDivider(color = PolarisColors.Outline)
         Spacer(Modifier.height(10.dp))
         Text("Star sync" + if (s.headingSource == HeadingSource.GYRO) " (required)" else " (optional)", style = MaterialTheme.typography.titleSmall)
-        Text("Aim the back of the phone at a bright object, hold still and tap Sync. This corrects the heading for this session in both modes.",
+        Text("Aim the back of the phone at a bright object, hold still and tap Sync. This corrects the heading for this session.",
             style = MaterialTheme.typography.bodySmall, color = PolarisColors.Muted)
         Spacer(Modifier.height(6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -347,8 +437,10 @@ private fun LimitationsCard(mode: PointingMode) {
         Text("Accuracy", style = MaterialTheme.typography.titleMedium)
         listOfNotNull(
             "Tilt (altitude) comes from gravity via the accelerometer and is the most reliable part, typically within 1°.",
-            "Heading comes from the compass (disturbed by metal, magnets and electronics; errors of 2–15° are common) or from the gyro (drifts a few degrees per 10–30 minutes). A star sync removes most of the error.",
-            if (mode == PointingMode.PLANE) "Plane mode needs only one condition — the object lies in the plane — so the phone can be rotated freely within its plane. It shows that the object is somewhere in the plane, not where in the plane." else null,
+            "Heading comes from the compass (disturbed by metal, magnets and electronics; errors of 2–15° are common) or from the gyro (drifts a few degrees per 10–30 minutes). A sync removes most of the error.",
+            "Objects move across the sky (up to 0.25°/min). Positions are recomputed every second, and syncs use the object's position at the moment of capture.",
+            if (mode == PointingMode.PLANE) "After a telescope sync, accuracy is best near the sync object(s); two syncs at different altitudes extend it across the sky. Re-sync if you move the phone on the telescope." else null,
+            if (mode == PointingMode.PLANE) "Without a sync, plane mode points with the plane's most vertical line (altitude = 90° − the phone's tilt). That line is undefined when the phone lies level and very sensitive when it's nearly upright." else null,
             "Not telescope-grade pointing: use it to get close, then a finder or low-power eyepiece.",
         ).forEach { Text("• $it", style = MaterialTheme.typography.bodySmall, color = PolarisColors.Muted, modifier = Modifier.padding(vertical = 2.dp)) }
     }
